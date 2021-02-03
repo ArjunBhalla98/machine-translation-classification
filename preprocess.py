@@ -49,7 +49,7 @@ def translate_to_integer(data):
             ):  # temporary measure while I figure out what to do with unknowns
                 in_text_ints.append(word_to_idx[word])
 
-        result.append([in_text_ints, label])
+        result.append([torch.tensor(in_text_ints), label])
 
     return result
 
@@ -86,6 +86,17 @@ def output_train_ints(seq_length):
     sample, labels = split_data_labels(padded_ints)
     give_numeric_labels(labels)
     return sample, labels
+
+
+def get_label_from_output(output):
+    return "H" if torch.argmax(output[0]).item() == 0 else "M"
+
+
+def output_train_words():
+    data = split(TRAIN_FILE)
+    samples, labels = split_data_labels(data)
+    give_numeric_labels(labels)
+    return samples, labels
 
 
 # data = split(TRAIN_FILE)

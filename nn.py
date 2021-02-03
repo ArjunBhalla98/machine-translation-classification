@@ -4,7 +4,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import random
 import numpy as np
-from preprocess import output_train_ints, N_TOKENS
+from preprocess import output_train_ints, N_TOKENS, get_label_from_output
 
 SEQ_LENGTH = 50
 N_EPOCHS = 50000
@@ -54,10 +54,6 @@ def train(sample, label):
         p.data.add_(p.grad.data, alpha=-lr)
 
     return output, loss.item()
-
-
-def get_label_from_output(output):
-    return "H" if torch.argmax(output[0]).item() == 0 else "M"
 
 
 loss_counter = 0
