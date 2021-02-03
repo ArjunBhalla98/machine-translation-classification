@@ -78,8 +78,11 @@ def give_numeric_labels(labels):
             labels[i] = torch.tensor([1])
 
 
-def output_train_ints(seq_length):
-    data = split(TRAIN_FILE)
+def output_train_ints(train_file=True):
+    if train_file:
+        data = split(TRAIN_FILE)
+    else:
+        data = split(TEST_FILE)
     # padded_ints = pad(translate_to_integer(data), seq_length)
     # no need to pad anymore
     padded_ints = translate_to_integer(data)
@@ -92,8 +95,11 @@ def get_label_from_output(output):
     return "H" if torch.argmax(output[0]).item() == 0 else "M"
 
 
-def output_train_words():
-    data = split(TRAIN_FILE)
+def output_train_words(train_file=True):
+    if train_file:
+        data = split(TRAIN_FILE)
+    else:
+        data = split(TEST_FILE)
     samples, labels = split_data_labels(data)
     give_numeric_labels(labels)
     return samples, labels
