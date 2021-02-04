@@ -5,7 +5,7 @@ import torch
 
 TRAIN_FILE = "./train.txt"
 TEST_FILE = "./test.txt"
-N_TOKENS = 5000
+N_TOKENS = 7000
 
 # index 0: source, index 1: reference, index 2: candidate, index 3: score, index 4: label
 
@@ -17,9 +17,12 @@ def split(file):
         split_text = list(
             map(
                 lambda x: [
-                    x.split("\n")[2].translate(
+                    x.split("\n")[0]
+                    + " "
+                    + x.split("\n")[2].translate(
                         str.maketrans("", "", string.punctuation)
                     ),
+                    float(x.split("\n")[3]),
                     x.split("\n")[4],
                 ],
                 split_text,
@@ -35,7 +38,8 @@ def translate_to_integer(data):
 
     for sample in data:
         in_text = sample[0]
-        label = sample[1]
+        score = sample[1]
+        label = sample[2]
         in_text_ints = []
 
         for word in in_text.split():
@@ -49,8 +53,7 @@ def translate_to_integer(data):
             ):  # temporary measure while I figure out what to do with unknowns
                 in_text_ints.append(word_to_idx[word])
 
-        result.append([torch.tensor(in_text_ints), label])
-
+        result.append([torch.tensor(in_text_ints), score, label])
     return result
 
 
@@ -67,7 +70,7 @@ def pad(input, total_length):
 
 def split_data_labels(data):
     data = np.array(data)
-    return data[:, 0], data[:, 1]
+    return data[:, 0], data[:, 1], data[:, 2]
 
 
 def give_numeric_labels(labels):
@@ -83,12 +86,13 @@ def output_train_ints(train_file=True):
         data = split(TRAIN_FILE)
     else:
         data = split(TEST_FILE)
+
     # padded_ints = pad(translate_to_integer(data), seq_length)
     # no need to pad anymore
     padded_ints = translate_to_integer(data)
-    sample, labels = split_data_labels(padded_ints)
+    sample, score, labels = split_data_labels(padded_ints)
     give_numeric_labels(labels)
-    return sample, labels
+    return sample, score, labels
 
 
 def get_label_from_output(output):
@@ -100,12 +104,26 @@ def output_train_words(train_file=True):
         data = split(TRAIN_FILE)
     else:
         data = split(TEST_FILE)
-    samples, labels = split_data_labels(data)
+    samples, scores, labels = split_data_labels(data)
     give_numeric_labels(labels)
-    return samples, labels
+    return samples, scores, labels
 
 
 # data = split(TRAIN_FILE)
 # final = split_data_labels(pad(translate_to_integer(data), 50))
 # give_numeric_labels(final[1])
 # print(final[1])
+
+# Checked balanced dataset
+# data = split(TEST_FILE)
+# samples, labels = split_data_labels(data)
+# n_h = 0
+# n_m = 0
+
+# for label in labels:
+#     if label == "H":
+#         n_h += 1
+#     else:
+#         n_m += 1
+
+# print(n_h, n_m)

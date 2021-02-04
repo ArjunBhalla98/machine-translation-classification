@@ -6,13 +6,13 @@ import random
 import numpy as np
 from preprocess import output_train_ints, N_TOKENS, get_label_from_output
 
-SEQ_LENGTH = 50
+SEQ_LENGTH = 100
 EMBEDDING_DIM = 100
 N_HIDDEN = 50
-N_EPOCHS = 18000
+N_EPOCHS = 20000
 RATE = 0.01
 
-samples, labels = output_train_ints()
+samples, scores, labels = output_train_ints()
 
 
 class LSTM(nn.Module):
@@ -22,8 +22,8 @@ class LSTM(nn.Module):
         self.lstm = nn.LSTM(embedding_dim, hidden_dim)
         self.out_layer = nn.Linear(hidden_dim, out_dim)
 
-    def forward(self, x):
-        embeddings = self.embedding(x)
+    def forward(self, x, score):
+        embeddings = self.embedding(x) * score
         lstm_out, _ = self.lstm(embeddings.view(len(x), 1, -1))
         lstm_linear_pass = self.out_layer(lstm_out.view(len(x), -1))
         lstm_sentence_average = torch.mean(lstm_linear_pass, 0)
@@ -36,16 +36,13 @@ optimizer = optim.SGD(lstm.parameters(), lr=RATE)
 # Do this on independent samples / words because of varying seq lengths
 
 
-def train(sample, label):
+def train(sample, score, label):
     hidden = torch.rand((1, N_HIDDEN))
     lstm.hidden_dim = hidden
 
     lstm.zero_grad()
-    output = None
 
-    # for word_idx in sample:
-    # output = lstm(torch.tensor(word_idx))
-    output = lstm(sample)
+    output = lstm(sample, score)
     loss = loss_function(output, label)
     loss.backward()
     optimizer.step()
@@ -72,14 +69,14 @@ loss_counter = 0
 print_interval = 1000
 n_correct = 0
 
-
 # Train
 for epoch in range(N_EPOCHS):
     rand_idx = random.randint(0, len(samples) - 1)
     sample = samples[rand_idx]
+    score = scores[rand_idx]
     label = labels[rand_idx]
 
-    output, loss = train(sample, label)
+    output, loss = train(sample, score, label)
     loss_counter += loss
 
     model_prediction = torch.argmax(output[0]).item()
@@ -102,14 +99,17 @@ true_m = 0
 classified_as_m = 0
 total_m = 0
 
-test_samples, test_labels = output_train_ints(False)
+correct_test = 0
+
+test_samples, test_scores, test_labels = output_train_ints(False)
 
 for i in range(len(test_samples)):
     sample = test_samples[i]
+    score = test_scores[i]
     label = test_labels[i]
 
     with torch.no_grad():
-        model_prediction = torch.argmax(lstm(sample)[0]).item()
+        model_prediction = torch.argmax(lstm(sample, score)[0]).item()
 
         # F1 stuff:
         if label == 0:
@@ -118,12 +118,14 @@ for i in range(len(test_samples)):
             if model_prediction == 0:
                 true_h += 1
                 classified_as_h += 1
+                correct_test += 1
             else:
                 classified_as_m += 1
         else:
             total_m += 1
 
             if model_prediction == 1:
+                correct_test += 1
                 true_m += 1
                 classified_as_m += 1
             else:
@@ -141,3 +143,4 @@ print("H precision, M precision:")
 print(h_precision, m_precision)
 
 print(f"H F1: {h_f1}, M F1: {m_f1}")
+print(f"Test Accuracy: {correct_test / len(test_samples)}")
