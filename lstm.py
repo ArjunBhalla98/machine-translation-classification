@@ -7,11 +7,13 @@ import numpy as np
 from preprocess import output_train_ints, N_TOKENS, get_label_from_output
 
 SEQ_LENGTH = 100
-VAL_SET_PCT = 0.25
+VAL_SET_PCT = 0.15
 EMBEDDING_DIM = 300
 N_HIDDEN = 100
-N_EPOCHS = 15000
+N_EPOCHS = 10000
 RATE = 0.01
+
+# Ideas: add dropout? Remove / add more layers from network (doesn't seem to do much)
 
 samples, scores, labels = output_train_ints()
 val_set_cutoff = int(VAL_SET_PCT * len(samples))
@@ -29,12 +31,15 @@ class LSTM(nn.Module):
         super(LSTM, self).__init__()
         self.embedding = nn.Embedding(N_TOKENS, embedding_dim)
         self.lstm = nn.LSTM(embedding_dim, hidden_dim)
+        self.dropout = nn.Dropout(p=0.3)
         self.out_layer = nn.Linear(hidden_dim, out_dim)
 
-    def forward(self, x, score):
+    def forward(self, x, score, train=True):
         embeddings = self.embedding(x) * score
         lstm_out, _ = self.lstm(embeddings.view(len(x), 1, -1))
         lstm_linear_pass = self.out_layer(lstm_out.view(len(x), -1))
+        if train:
+            lstm_linear_pass = self.dropout(lstm_linear_pass)
         lstm_sentence_average = torch.mean(lstm_linear_pass, 0)
         return F.log_softmax(lstm_sentence_average).view(1, 2)
 
@@ -105,7 +110,7 @@ for i in range(len(samples)):
     label = labels[i]
 
     with torch.no_grad():
-        model_prediction = torch.argmax(lstm(sample, score)[0]).item()
+        model_prediction = torch.argmax(lstm(sample, score, False)[0]).item()
 
         if label == model_prediction:
             n_correct += 1
@@ -120,7 +125,7 @@ for i in range(len(val_samples)):
     label = val_labels[i]
 
     with torch.no_grad():
-        model_prediction = torch.argmax(lstm(sample, score)[0]).item()
+        model_prediction = torch.argmax(lstm(sample, score, False)[0]).item()
 
         if label == model_prediction:
             n_correct += 1
@@ -146,7 +151,7 @@ for i in range(len(test_samples)):
     label = test_labels[i]
 
     with torch.no_grad():
-        model_prediction = torch.argmax(lstm(sample, score)[0]).item()
+        model_prediction = torch.argmax(lstm(sample, score, False)[0]).item()
 
         # F1 stuff:
         if label == 0:
