@@ -5,7 +5,7 @@ import torch
 
 TRAIN_FILE = "./train.txt"
 TEST_FILE = "./test.txt"
-N_TOKENS = 7000
+N_TOKENS = 8000
 
 # index 0: source, index 1: reference, index 2: candidate, index 3: score, index 4: label
 
@@ -17,7 +17,9 @@ def split(file):
         split_text = list(
             map(
                 lambda x: [
-                    x.split("\n")[0]
+                    # x.split("\n")[0]
+                    # + " " +
+                    x.split("\n")[1]
                     + " "
                     + x.split("\n")[2].translate(
                         str.maketrans("", "", string.punctuation)

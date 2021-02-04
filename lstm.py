@@ -7,12 +7,21 @@ import numpy as np
 from preprocess import output_train_ints, N_TOKENS, get_label_from_output
 
 SEQ_LENGTH = 100
-EMBEDDING_DIM = 100
-N_HIDDEN = 50
-N_EPOCHS = 20000
+VAL_SET_PCT = 0.25
+EMBEDDING_DIM = 300
+N_HIDDEN = 100
+N_EPOCHS = 15000
 RATE = 0.01
 
 samples, scores, labels = output_train_ints()
+val_set_cutoff = int(VAL_SET_PCT * len(samples))
+val_samples = samples[:val_set_cutoff]
+val_scores = scores[:val_set_cutoff]
+val_labels = labels[:val_set_cutoff]
+
+samples = samples[val_set_cutoff:]
+scores = scores[val_set_cutoff:]
+labels = labels[val_set_cutoff:]
 
 
 class LSTM(nn.Module):
@@ -67,7 +76,6 @@ def calc_f1(precision, recall):
 
 loss_counter = 0
 print_interval = 1000
-n_correct = 0
 
 # Train
 for epoch in range(N_EPOCHS):
@@ -80,16 +88,45 @@ for epoch in range(N_EPOCHS):
     loss_counter += loss
 
     model_prediction = torch.argmax(output[0]).item()
-    n_correct += 1 if model_prediction == label else 0
+    # n_correct += 1 if model_prediction == label else 0
 
     if epoch % print_interval == 0:
         guess = get_label_from_output(output)
         actual = "H" if label == 0 else "M"
         print(f"Model Predicted: {guess}, actual is: {actual}.")
-        print(f"Epoch average loss: {loss_counter / print_interval}")
+        print(f"Epoch {epoch} average loss: {loss_counter / print_interval}\n")
         loss_counter = 0
 
-print(f"Accuracy after training: {n_correct / N_EPOCHS}")
+n_correct = 0
+
+for i in range(len(samples)):
+    sample = samples[i]
+    score = scores[i]
+    label = labels[i]
+
+    with torch.no_grad():
+        model_prediction = torch.argmax(lstm(sample, score)[0]).item()
+
+        if label == model_prediction:
+            n_correct += 1
+
+print(f"Training Accuracy: {n_correct / len(samples)}\n")
+
+n_correct = 0
+
+for i in range(len(val_samples)):
+    sample = val_samples[i]
+    score = val_scores[i]
+    label = val_labels[i]
+
+    with torch.no_grad():
+        model_prediction = torch.argmax(lstm(sample, score)[0]).item()
+
+        if label == model_prediction:
+            n_correct += 1
+
+print(f"Validation Accuracy: {n_correct / len(val_samples)}\n")
+
 # For F1:
 true_h = 0
 classified_as_h = 0
@@ -131,16 +168,18 @@ for i in range(len(test_samples)):
             else:
                 classified_as_h += 1
 
-h_precision = calc_precision(true_h, classified_as_h)
-h_recall = calc_recall(true_h, total_h)
-m_precision = calc_precision(true_m, classified_as_m)
-m_recall = calc_recall(true_m, total_m)
+EPSILON = 0.0000001
+h_precision = calc_precision(true_h, classified_as_h) + EPSILON
+h_recall = calc_recall(true_h, total_h) + EPSILON
+m_precision = calc_precision(true_m, classified_as_m) + EPSILON
+m_recall = calc_recall(true_m, total_m) + EPSILON
 
 h_f1 = calc_f1(h_precision, h_recall)
 m_f1 = calc_f1(m_precision, m_recall)
 
 print("H precision, M precision:")
 print(h_precision, m_precision)
+print()
 
-print(f"H F1: {h_f1}, M F1: {m_f1}")
+print(f"H F1: {h_f1}, M F1: {m_f1}\n")
 print(f"Test Accuracy: {correct_test / len(test_samples)}")
