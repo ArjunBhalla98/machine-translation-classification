@@ -17,15 +17,12 @@ def split(file):
         split_text = list(
             map(
                 lambda x: [
-                    # x.split("\n")[0]
+                    x.split("\n")[0]
                     # + " " +
-                    x.split("\n")[1].translate(
-                        str.maketrans("", "", string.punctuation)
-                    )
-                    + " "
-                    + x.split("\n")[2].translate(
-                        str.maketrans("", "", string.punctuation)
-                    ),
+                    # x.split("\n")[1].translate(
+                    #     str.maketrans("", "", string.punctuation)
+                    # )
+                    + " " + x.split("\n")[2],
                     float(x.split("\n")[3]),
                     x.split("\n")[4],
                 ],
