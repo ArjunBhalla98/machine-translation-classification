@@ -19,7 +19,9 @@ def split(file):
                 lambda x: [
                     # x.split("\n")[0]
                     # + " " +
-                    x.split("\n")[1]
+                    x.split("\n")[1].translate(
+                        str.maketrans("", "", string.punctuation)
+                    )
                     + " "
                     + x.split("\n")[2].translate(
                         str.maketrans("", "", string.punctuation)

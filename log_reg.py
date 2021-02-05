@@ -7,14 +7,11 @@ import numpy as np
 from preprocess import output_train_ints, N_TOKENS, get_label_from_output
 
 SEQ_LENGTH = 100
-VAL_SET_PCT = 0.1
+VAL_SET_PCT = 0.15
 EMBEDDING_DIM = 300
-N_HIDDEN = 150
-N_EPOCHS = 10001
-RATE = 0.01
-
-train_accuracy_list = []
-val_accuracy_list = []
+N_HIDDEN = 100
+N_EPOCHS = 20000
+RATE = 0.1
 
 # Ideas: add dropout? Remove / add more layers from network (doesn't seem to do much)
 
@@ -29,48 +26,48 @@ scores = scores[val_set_cutoff:]
 labels = labels[val_set_cutoff:]
 
 
-class LSTM(nn.Module):
+class Model(nn.Module):
     def __init__(self, embedding_dim, hidden_dim, out_dim):
-        super(LSTM, self).__init__()
+        super(Model, self).__init__()
         self.embedding = nn.Embedding(N_TOKENS, embedding_dim)
-        self.lstm = nn.LSTM(embedding_dim, hidden_dim)
+        self.linear = nn.Linear(embedding_dim, out_dim)
         self.dropout = nn.Dropout(p=0.3)
-        self.out_layer = nn.Linear(hidden_dim, out_dim)
-        # self.conversion_layer = nn.Linear
+        # self.out_layer = nn.Linear(hidden_dim, out_dim)
 
     def forward(self, x, score, train=True):
         embeddings = self.embedding(x) * score
-        lstm_out, _ = self.lstm(embeddings.view(len(x), 1, -1))
-        lstm_linear_pass = self.out_layer(lstm_out.view(len(x), -1))
+        out = self.linear(torch.mean(embeddings, 0))
         if train:
-            lstm_linear_pass = self.dropout(lstm_linear_pass)
-        lstm_sentence_average = torch.mean(lstm_linear_pass, 0)
-        return F.log_softmax(lstm_sentence_average).view(1, 2)
+            out = self.dropout(out)
+        return F.sigmoid(out).double()
+        # model_out, _ = self.model(embeddings.view(len(x), 1, -1))
+        # model_linear_pass = self.out_layer(model_out.view(len(x), -1))
+        # if train:
+        #     model_linear_pass = self.dropout(model_linear_pass)
+        # model_sentence_average = torch.mean(model_linear_pass, 0)
+        # return F.log_softmax(model_sentence_average).view(1, 2)
 
 
-lstm = LSTM(EMBEDDING_DIM, N_HIDDEN, 2)
-loss_function = nn.NLLLoss()
-optimizer = optim.SGD(lstm.parameters(), lr=RATE)
+model = Model(EMBEDDING_DIM, N_HIDDEN, 1)
+loss_function = nn.BCELoss()
+optimizer = optim.SGD(model.parameters(), lr=RATE)
 # Do this on independent samples / words because of varying seq lengths
 
 
 def train(sample, score, label):
     hidden = torch.rand((1, N_HIDDEN))
-    lstm.hidden_dim = hidden
+    model.hidden_dim = hidden
 
-    lstm.zero_grad()
+    model.zero_grad()
 
-    output = lstm(sample, score)
-    loss = loss_function(output, label)
+    output = model(sample, score)
+    loss = loss_function(output, label.double())
     loss.backward()
     optimizer.step()
 
     return output, loss.item()
 
 
-# For calculating F1 score:
-# Human F1: Precision = true H / everything classified as H,
-# Recall = true H / total H seen
 def calc_precision(true_pos, all_pos):
     return true_pos / all_pos
 
@@ -86,44 +83,6 @@ def calc_f1(precision, recall):
 loss_counter = 0
 print_interval = 1000
 
-
-def train_accuracy():
-    n_correct = 0
-
-    for i in range(len(samples)):
-        sample = samples[i]
-        score = scores[i]
-        label = labels[i]
-
-        with torch.no_grad():
-            model_prediction = torch.argmax(lstm(sample, score, False)[0]).item()
-
-            if label == model_prediction:
-                n_correct += 1
-
-    train_acc = n_correct / len(samples)
-    train_accuracy_list.append(train_acc)
-    print(f"Training Accuracy: {train_acc}\n")
-
-
-def val_accuracy():
-    n_correct = 0
-
-    for i in range(len(val_samples)):
-        sample = val_samples[i]
-        score = val_scores[i]
-        label = val_labels[i]
-
-        with torch.no_grad():
-            model_prediction = torch.argmax(lstm(sample, score, False)[0]).item()
-
-            if label == model_prediction:
-                n_correct += 1
-    val_acc = n_correct / len(val_samples)
-    val_accuracy_list.append(val_acc)
-    print(f"Validation Accuracy: {val_acc}\n")
-
-
 # Train
 for epoch in range(N_EPOCHS):
     rand_idx = random.randint(0, len(samples) - 1)
@@ -134,17 +93,45 @@ for epoch in range(N_EPOCHS):
     output, loss = train(sample, score, label)
     loss_counter += loss
 
-    model_prediction = torch.argmax(output[0]).item()
+    model_prediction = 0 if output <= 0.5 else 1
     # n_correct += 1 if model_prediction == label else 0
 
     if epoch % print_interval == 0:
-        guess = get_label_from_output(output)
+        guess = "H" if output <= 0.5 else "M"
         actual = "H" if label == 0 else "M"
         print(f"Model Predicted: {guess}, actual is: {actual}.")
         print(f"Epoch {epoch} average loss: {loss_counter / print_interval}\n")
-        train_accuracy()
-        val_accuracy()
         loss_counter = 0
+
+n_correct = 0
+
+for i in range(len(samples)):
+    sample = samples[i]
+    score = scores[i]
+    label = labels[i]
+
+    with torch.no_grad():
+        model_prediction = 0 if model(sample, score, False) <= 0.5 else 1
+
+        if label == model_prediction:
+            n_correct += 1
+
+print(f"Training Accuracy: {n_correct / len(samples)}\n")
+
+n_correct = 0
+
+for i in range(len(val_samples)):
+    sample = val_samples[i]
+    score = val_scores[i]
+    label = val_labels[i]
+
+    with torch.no_grad():
+        model_prediction = 0 if model(sample, score, False) <= 0.5 else 1
+
+        if label == model_prediction:
+            n_correct += 1
+
+print(f"Validation Accuracy: {n_correct / len(val_samples)}\n")
 
 # For F1:
 true_h = 0
@@ -165,7 +152,7 @@ for i in range(len(test_samples)):
     label = test_labels[i]
 
     with torch.no_grad():
-        model_prediction = torch.argmax(lstm(sample, score, False)[0]).item()
+        model_prediction = 0 if model(sample, score, False) <= 0.5 else 1
 
         # F1 stuff:
         if label == 0:
@@ -201,7 +188,4 @@ print(h_precision, m_precision)
 print()
 
 print(f"H F1: {h_f1}, M F1: {m_f1}\n")
-print("Training Accuracy: " + str(train_accuracy_list) + "\n")
-print("Validation Accuracy: " + str(val_accuracy_list) + "\n")
 print(f"Test Accuracy: {correct_test / len(test_samples)}")
-print()
