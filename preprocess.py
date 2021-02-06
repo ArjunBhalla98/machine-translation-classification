@@ -1,5 +1,4 @@
 from collections import defaultdict
-import string
 import numpy as np
 import torch
 
@@ -14,15 +13,11 @@ def split(file):
     with open(file, "r") as f:
         text = f.read()
         split_text = text.split("\n\n")
+        # Purposely left out punctuation removal
         split_text = list(
             map(
                 lambda x: [
-                    x.split("\n")[0]
-                    # + " " +
-                    # x.split("\n")[1].translate(
-                    #     str.maketrans("", "", string.punctuation)
-                    # )
-                    + " " + x.split("\n")[2],
+                    x.split("\n")[0] + " " + x.split("\n")[2],
                     float(x.split("\n")[3]),
                     x.split("\n")[4],
                 ],
@@ -49,9 +44,7 @@ def translate_to_integer(data):
                 idx += 1
                 word_to_idx[word] = idx
 
-            if (
-                word_to_idx[word] != 0
-            ):  # temporary measure while I figure out what to do with unknowns
+            if word_to_idx[word] != 0:
                 in_text_ints.append(word_to_idx[word])
 
         result.append([torch.tensor(in_text_ints), score, label])
@@ -88,8 +81,6 @@ def output_train_ints(train_file=True):
     else:
         data = split(TEST_FILE)
 
-    # padded_ints = pad(translate_to_integer(data), seq_length)
-    # no need to pad anymore
     padded_ints = translate_to_integer(data)
     sample, score, labels = split_data_labels(padded_ints)
     give_numeric_labels(labels)
@@ -108,23 +99,3 @@ def output_train_words(train_file=True):
     samples, scores, labels = split_data_labels(data)
     give_numeric_labels(labels)
     return samples, scores, labels
-
-
-# data = split(TRAIN_FILE)
-# final = split_data_labels(pad(translate_to_integer(data), 50))
-# give_numeric_labels(final[1])
-# print(final[1])
-
-# Checked balanced dataset
-# data = split(TEST_FILE)
-# samples, labels = split_data_labels(data)
-# n_h = 0
-# n_m = 0
-
-# for label in labels:
-#     if label == "H":
-#         n_h += 1
-#     else:
-#         n_m += 1
-
-# print(n_h, n_m)
